@@ -1,0 +1,150 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import turtle
+
+# ---------------------- 映射表 100% 不变 ----------------------
+char_to_binary = {
+    'A': '111111', 'B': '000000', 'C': '010001', 'D': '100010', 'E': '111010', 'F': '010111',
+    'G': '000010', 'H': '010000', 'I': '111011', 'J': '110111', 'K': '111000', 'L': '000111',
+    'M': '110110', 'N': '101111', 'O': '000110', 'P': '010011', 'Q': '011001', 'R': '100110',
+    'S': '011000', 'T': '000101', 'U': '101001', 'V': '100101', 'W': '000100', 'X': '001000',
+    'Y': '101110', 'Z': '111101',
+    'a': '100001', 'b': '111110', 'c': '010010', 'd': '101101', 'e': '011100', 'f': '001101',
+    'g': '011110', 'h': '001111', 'i': '101100', 'j': '001100', 'k': '110101', 'l': '101011',
+    'm': '010100', 'n': '001010', 'o': '100100', 'p': '011011', 'q': '011111', 'r': '111100',
+    's': '010110', 't': '001011', 'u': '010101', 'v': '101010', 'w': '101111', 'x': '110101',
+    'y': '001001', 'z': '100000',
+    '0': '110001', '1': '011010', '2': '110000', '3': '100011', '4': '110100', '5': '001011',
+    '6': '110010', '7': '011001', '8': '110011', '9': '001001', ',': '010101', '.': '101010'
+}
+binary_to_char = {v: k for k, v in char_to_binary.items()}
+
+# ---------------------- 指令映射 ----------------------
+turtle_cmd_map = {
+    'F': 'forward',
+    'B': 'backward',
+    'L': 'left',
+    'R': 'right',
+    'U': 'penup',
+    'D': 'pendown',
+    'G': 'goto',
+    'C': 'circle',
+    'P': 'pencolor',
+    'S': 'speed',
+}
+
+# ---------------------- 核心解析函数 ----------------------
+def guacode_to_commands(guacode: str):
+    commands = []
+    lines = guacode.strip().splitlines()
+    for line in lines:
+        line = line.strip()
+        if not line or line[0] not in turtle_cmd_map:
+            continue
+
+        cmd = turtle_cmd_map[line[0]]
+        param_str = line[1:].strip()
+        params = []
+
+        if cmd == "goto" and "," in param_str:
+            try:
+                x_str, y_str = param_str.split(",", 1)
+                x = int(x_str.strip())
+                y = int(y_str.strip())
+                params = [x, y]
+            except:
+                params = []
+        else:
+            try:
+                num = int(''.join([c for c in param_str if c.isdigit()]))
+                params = [num]
+            except:
+                params = []
+
+        commands.append((cmd, params))
+    return commands
+
+# ---------------------- 主界面（打包安全版） ----------------------
+class YiTurtleCompiler(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("小朋友海龟绘图")
+        self.geometry("1200x700")
+
+        # 【修复】取消 PanedWindow，打包更稳定
+        left_frame = tk.Frame(self, width=300, bg="#f0f0f0")
+        left_frame.pack(side=tk.LEFT, fill=tk.Y)
+
+        right_frame = tk.Frame(self)
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+        # 画布
+        self.canvas = turtle.Canvas(right_frame, bg="white")
+        self.canvas.pack(fill=tk.BOTH, expand=True)
+        self.t = turtle.RawTurtle(self.canvas)
+        self.t.speed(0)
+
+        # 输入区
+        ttk.Label(left_frame, text="📜 绘图指令", font=("微软雅黑", 12)).pack(anchor='w', padx=10, pady=5)
+        self.input_text = tk.Text(left_frame, height=18, width=35, font=("Consolas", 10))
+        self.input_text.pack(padx=10, pady=5, fill='both', expand=True)
+
+        # 默认示例
+        self.input_text.insert("end", """F100
+R90
+F100
+U
+G200,200
+D
+F50
+L90
+F50
+""")
+
+        # 按钮
+        btn_frame = ttk.Frame(left_frame)
+        btn_frame.pack(pady=8)
+        ttk.Button(btn_frame, text="▶ 运行绘制", command=self.run_draw).grid(row=0, column=0, padx=5)
+        ttk.Button(btn_frame, text="🧹 清空画布", command=self.clear).grid(row=0, column=1, padx=5)
+
+        ttk.Label(left_frame, text="🔧 运行日志", font=("微软雅黑", 12)).pack(anchor='w', padx=10, pady=5)
+        self.log_text = tk.Text(left_frame, height=10, width=35, font=("Consolas", 10))
+        self.log_text.pack(padx=10, pady=5, fill='both', expand=True)
+
+    def run_draw(self):
+        code = self.input_text.get("1.0", tk.END).strip()
+        if not code:
+            messagebox.showwarning("提示", "请输入代码")
+            return
+
+        self.clear()
+        cmds = guacode_to_commands(code)
+        self.log("=== 开始执行绘图指令 ===")
+
+        for cmd, params in cmds:
+            try:
+                if params:
+                    getattr(self.t, cmd)(*params)
+                    self.log(f"执行: {cmd}{tuple(params)}")
+                else:
+                    getattr(self.t, cmd)()
+                    self.log(f"执行: {cmd}()")
+            except Exception:
+                self.log(f"指令错误")
+
+        self.log("=== 绘制完成 ===")
+        messagebox.showinfo("完成", "绘图执行完毕！")
+
+    def clear(self):
+        self.t.clear()
+        self.t.home()
+        self.t.speed(0)
+        self.log_text.delete("1.0", tk.END)
+
+    def log(self, msg):
+        self.log_text.insert(tk.END, msg + "\n")
+        self.log_text.see(tk.END)
+
+if __name__ == "__main__":
+    app = YiTurtleCompiler()
+    app.mainloop()

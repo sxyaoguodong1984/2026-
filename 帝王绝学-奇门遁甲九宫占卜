@@ -1,0 +1,882 @@
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+import math
+import json
+import time
+import os
+from datetime import datetime, timedelta
+
+
+class RotatingBaguaCirclesApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("奇门遁甲")
+        self.root.geometry("1400x950")
+        self.root.configure(bg="#8B4513")  # 主界面：棕色
+
+        self.file_path = None
+        self.show_circle_mode = False
+        self.show_jiugong_mode = True
+
+        # 2026年节气时间表（精确时间，仅用于判断哪一天）
+        self.jieqi_2026 = [
+            ("小寒", datetime(2026, 1, 5, 12, 46), datetime(2026, 1, 20, 6, 9)),
+            ("大寒", datetime(2026, 1, 20, 6, 9), datetime(2026, 2, 3, 22, 54)),
+            ("立春", datetime(2026, 2, 3, 22, 54), datetime(2026, 2, 18, 20, 58)),
+            ("雨水", datetime(2026, 2, 18, 20, 58), datetime(2026, 3, 5, 19, 14)),
+            ("惊蛰", datetime(2026, 3, 5, 19, 14), datetime(2026, 3, 20, 20, 43)),
+            ("春分", datetime(2026, 3, 20, 20, 43), datetime(2026, 4, 4, 0, 50)),
+            ("清明", datetime(2026, 4, 4, 0, 50), datetime(2026, 4, 19, 7, 59)),
+            ("谷雨", datetime(2026, 4, 19, 7, 59), datetime(2026, 5, 4, 14, 1)),
+            ("立夏", datetime(2026, 5, 4, 14, 1), datetime(2026, 5, 19, 23, 1)),
+            ("小满", datetime(2026, 5, 19, 23, 1), datetime(2026, 6, 5, 14, 29)),
+            ("芒种", datetime(2026, 6, 5, 14, 29), datetime(2026, 6, 21, 7, 17)),
+            ("夏至", datetime(2026, 6, 21, 7, 17), datetime(2026, 7, 7, 0, 40)),
+            ("小暑", datetime(2026, 7, 7, 0, 40), datetime(2026, 7, 22, 18, 6)),
+            ("大暑", datetime(2026, 7, 22, 18, 6), datetime(2026, 8, 7, 10, 39)),
+            ("立秋", datetime(2026, 8, 7, 10, 39), datetime(2026, 8, 23, 1, 18)),
+            ("处暑", datetime(2026, 8, 23, 1, 18), datetime(2026, 9, 7, 13, 39)),
+            ("白露", datetime(2026, 9, 7, 13, 39), datetime(2026, 9, 22, 22, 53)),
+            ("秋分", datetime(2026, 9, 22, 22, 53), datetime(2026, 10, 8, 5, 9)),
+            ("寒露", datetime(2026, 10, 8, 5, 9), datetime(2026, 10, 23, 8, 22)),
+            ("霜降", datetime(2026, 10, 23, 8, 22), datetime(2026, 11, 7, 8, 27)),
+            ("立冬", datetime(2026, 11, 7, 8, 27), datetime(2026, 11, 22, 5, 59)),
+            ("小雪", datetime(2026, 11, 22, 5, 59), datetime(2026, 12, 6, 23, 2)),
+            ("大雪", datetime(2026, 12, 6, 23, 2), datetime(2026, 12, 22, 17, 1)),
+            ("冬至", datetime(2026, 12, 22, 17, 1), datetime(2027, 1, 5, 9, 29)),
+            ("小寒", datetime(2027, 1, 5, 9, 29), datetime(2027, 1, 20, 2, 54))
+        ]
+
+        self.time_to_palace = {
+            "子时": "一", "丑时": "八", "寅时": "八", "卯时": "三",
+            "辰时": "四", "巳时": "四", "午时": "九", "未时": "二",
+            "申时": "二", "酉时": "七", "戌时": "六", "亥时": "六"
+        }
+        self.star_list = ["天蓬星", "天芮星", "天冲星", "天辅星", "天禽星",
+                          "天心星", "天柱星", "天任星", "天英星"]
+        self.palace_nums = ["一", "二", "三", "四", "五", "六", "七", "八", "九"]
+
+        self.center_x = 400
+        self.center_y = 300
+        self.base_radius = 50
+        self.radius_gap = 60
+        self.rotate_step = 45
+
+        self.max_radius = self.base_radius + 3 * self.radius_gap
+        self.max_diameter = self.max_radius * 2
+
+        self.sector_lines = [45, 90, 135, 180, 225, 270, 315, 360]
+        self.bagua_names = ["坤", "离", "巽", "震", "艮", "坎", "乾", "兑"]
+        self.bagua_angles = [45, 90, 135, 180, 225, 270, 315, 360]
+        self.line_mid_angles = [67.5, 112.5, 157.5, 202.5, 247.5, 292.5, 337.5, 22.5]
+        self.circle_angles = [0, 0, 0, 0]
+
+        self.base_nums = ["四", "九", "二", "三", "五", "七", "八", "一", "六"]
+
+        self.num_to_idx = {
+            "一": 7, "二": 2, "三": 3, "四": 0,
+            "五": 4, "六": 8, "七": 5, "八": 6, "九": 1
+        }
+        self.idx_to_num = {v: k for k, v in self.num_to_idx.items()}
+
+        self.star_by_num = {
+            "一": "天蓬星", "二": "天芮星", "三": "天冲星",
+            "四": "天辅星", "五": "天禽星", "六": "天心星",
+            "七": "天柱星", "八": "天任星", "九": "天英星"
+        }
+
+        self.current_doors = ["杜门巽位", "景门离位", "死门坤位", "伤门震位", "困位", "惊门兑位", "生门艮位",
+                              "休门坎位", "开门乾位"]
+
+        shen_shun_num = {
+            "一": "直符", "八": "螣蛇", "三": "太阴", "四": "六合",
+            "九": "勾陈", "二": "朱雀", "七": "九地", "六": "九天", "五": "中宫"
+        }
+        self.current_shen_shun = [shen_shun_num[self.idx_to_num[idx]] for idx in range(9)]
+
+        shen_ni_num = {
+            "一": "直符", "六": "螣蛇", "七": "太阴", "二": "六合",
+            "九": "白虎", "四": "玄武", "三": "九地", "八": "九天", "五": "中宫"
+        }
+        self.current_shen_ni = [shen_ni_num[self.idx_to_num[idx]] for idx in range(9)]
+        self.current_shen = self.current_shen_shun.copy()
+
+        self.shen_rotate_map = {
+            "顺时针": [1, 2, 5, 0, 4, 8, 3, 6, 7],
+            "逆时针": [3, 0, 1, 6, 4, 2, 7, 8, 5]
+        }
+        self.current_stars = self.get_star_list()
+        self.door_rotate_map = {
+            "逆时针": [3, 0, 1, 6, 4, 2, 7, 8, 5],
+            "顺时针": [1, 2, 5, 0, 4, 8, 3, 6, 7]
+        }
+
+        self.tian_gang_list = ["甲子戊", "甲戌己", "甲申庚", "甲午辛", "甲辰壬", "甲寅癸", "乙奇", "丙奇", "丁奇"]
+        self.tg_comboboxes = []
+
+        main_container = tk.Frame(root)
+        main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        # ====================== 只保留时辰显示 ======================
+        function_frame = tk.Frame(main_container)
+        function_frame.pack(side=tk.TOP, fill=tk.X, pady=10)
+
+        time_frame = tk.Frame(function_frame)
+        time_frame.pack(side=tk.LEFT, padx=10)
+        tk.Label(time_frame, text="当前时辰：", font=("SimHei", 12)).pack(side=tk.LEFT)
+        self.current_time_label = tk.Label(time_frame, text="", font=("SimHei", 12, "bold"), fg="red")
+        self.current_time_label.pack(side=tk.LEFT)
+        # ============================================================
+
+        self.canvas_container = tk.Frame(main_container)
+        self.canvas_container.pack(fill=tk.BOTH, expand=True)
+
+        self.circle_time_frame = tk.Frame(self.canvas_container)
+        self.circle_time_frame.pack(side=tk.TOP, fill=tk.X, pady=5)
+        self.circle_time_frame.pack_forget()
+
+        self.circle_time_label = tk.Label(
+            self.circle_time_frame,
+            font=("SimHei", 16),
+            fg="#333333",
+            anchor="center"
+        )
+        self.circle_time_label.pack(side=tk.TOP, pady=5)
+
+        self.circle_canvas = tk.Canvas(self.canvas_container, width=800, height=600, bg="white")
+        self.circle_canvas.pack_forget()
+
+        self.jiugong_main_container = tk.Frame(self.canvas_container,
+                                               width=self.max_diameter + 200,
+                                               height=self.max_diameter + 280)
+        self.jiugong_main_container.pack(side=tk.TOP, pady=20)
+        self.jiugong_main_container.pack_propagate(False)
+
+        self.jiugong_time_frame = tk.Frame(self.jiugong_main_container)
+        self.jiugong_time_frame.pack(side=tk.TOP, fill=tk.X, pady=5)
+
+        self.jiugong_time_label = tk.Label(
+            self.jiugong_time_frame,
+            font=("SimHei", 16),
+            fg="#333333",
+            anchor="center"
+        )
+        self.jiugong_time_label.pack(side=tk.TOP, pady=5)
+
+        self.jiugong_container = tk.Frame(self.jiugong_main_container,
+                                          width=self.max_diameter,
+                                          height=self.max_diameter)
+        self.jiugong_container.pack(side=tk.TOP)
+        self.jiugong_container.pack_propagate(False)
+
+        self.jiugong_canvas = tk.Canvas(
+            self.jiugong_container,
+            width=self.max_diameter,
+            height=self.max_diameter,
+            bg="white",
+            highlightthickness=1,
+            highlightbackground="black"
+        )
+        self.jiugong_canvas.pack(side=tk.TOP)
+
+        # ====================== 节气输入框 + 一键保存按钮（同一行） ======================
+        input_frame1 = tk.Frame(self.jiugong_main_container)
+        input_frame1.pack(side=tk.TOP, fill=tk.X, pady=10)
+
+        # 左侧：节气局数输入框
+        self.jiugong_info_input1 = tk.Entry(
+            input_frame1,
+            font=("SimHei", 32),
+            justify=tk.CENTER,
+            bd=2,
+            relief=tk.GROOVE
+        )
+        self.jiugong_info_input1.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+
+        # 右侧：一键保存按钮（和节气框水平同行）
+        self.onekey_save_btn = tk.Button(
+            input_frame1,
+            text="💾 一键保存",
+            command=self.onekey_save_pan,
+            font=("SimHei", 14, "bold"),
+            width=12,
+            height=1,
+            bg="#e6ffe6", fg="darkgreen"
+        )
+        self.onekey_save_btn.pack(side=tk.RIGHT, padx=5)
+        # ================================================================================
+
+        # 时辰输入框
+        input_frame2 = tk.Frame(self.jiugong_main_container)
+        input_frame2.pack(side=tk.TOP, fill=tk.X, pady=0)
+        self.jiugong_info_input2 = tk.Entry(
+            input_frame2,
+            font=("SimHei", 32),
+            justify=tk.CENTER,
+            bd=2,
+            relief=tk.GROOVE
+        )
+        self.jiugong_info_input2.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+        self.jiugong_info_input2.insert(0, "时辰：甲子时")
+
+        self.create_tg_comboboxes_in_jiugong()
+
+        self.button_container = tk.Frame(root)
+        self.button_container.pack(fill=tk.X, padx=10, pady=10)
+
+        self.circle_buttons_frame = tk.Frame(self.button_container)
+        self.rotate_buttons = []
+        for i in range(4):
+            btn = tk.Button(
+                self.circle_buttons_frame,
+                text=f"旋转第{i + 1}个圆",
+                command=lambda idx=i: self.rotate_circle(idx),
+                font=("SimHei", 12, "bold"),
+                width=15,
+                height=2
+            )
+            btn.pack(side=tk.LEFT, padx=5)
+            self.rotate_buttons.append(btn)
+        self.circle_buttons_frame.pack_forget()
+
+        self.jiugong_buttons_frame = tk.Frame(self.button_container)
+
+        star_btn_frame = tk.Frame(self.jiugong_buttons_frame)
+        star_btn_frame.pack(side=tk.LEFT, padx=5)
+
+        self.move_star_forward_btn = tk.Button(
+            star_btn_frame,
+            text="顺移星",
+            command=lambda: self.move_stars(direction="forward"),
+            font=("SimHei", 12, "bold"),
+            width=15,
+            height=2,
+            bg="#e6f7ff",
+            fg="darkblue"
+        )
+        self.move_star_forward_btn.pack(side=tk.LEFT, padx=5)
+
+        self.move_star_backward_btn = tk.Button(
+            star_btn_frame,
+            text="逆移星",
+            command=lambda: self.move_stars(direction="backward"),
+            font=("SimHei", 12, "bold"),
+            width=15,
+            height=2,
+            bg="#f0f8ff",
+            fg="navy"
+        )
+        self.move_star_backward_btn.pack(side=tk.LEFT, padx=5)
+
+        door_btn_frame = tk.Frame(self.jiugong_buttons_frame)
+        door_btn_frame.pack(side=tk.LEFT, padx=5)
+
+        self.change_door_forward_btn = tk.Button(
+            door_btn_frame,
+            text="顺换斗",
+            command=lambda: self.change_doors(direction="forward"),
+            font=("SimHei", 12, "bold"),
+            width=15,
+            height=2,
+            bg="#fff2e6",
+            fg="darkred"
+        )
+        self.change_door_forward_btn.pack(side=tk.LEFT, padx=5)
+
+        self.change_door_backward_btn = tk.Button(
+            door_btn_frame,
+            text="逆换斗",
+            command=lambda: self.change_doors(direction="backward"),
+            font=("SimHei", 12, "bold"),
+            width=15,
+            height=2,
+            bg="#ffebee",
+            fg="crimson"
+        )
+        self.change_door_backward_btn.pack(side=tk.LEFT, padx=5)
+
+        shen_btn_frame = tk.Frame(self.jiugong_buttons_frame)
+        shen_btn_frame.pack(side=tk.LEFT, padx=5)
+
+        self.change_shen_forward_btn = tk.Button(
+            shen_btn_frame,
+            text="阴遁直符",
+            command=lambda: self.change_shen(direction="backward"),
+            font=("SimHei", 12, "bold"),
+            width=20,
+            height=2,
+            bg="#f5f5f5",
+            fg="darkgreen"
+        )
+        self.change_shen_forward_btn.pack(side=tk.LEFT, padx=5)
+
+        self.change_shen_backward_btn = tk.Button(
+            shen_btn_frame,
+            text="阳遁直符",
+            command=lambda: self.change_shen(direction="forward"),
+            font=("SimHei", 12, "bold"),
+            width=20,
+            height=2,
+            bg="#f8f8f8",
+            fg="purple4"
+        )
+        self.change_shen_backward_btn.pack(side=tk.LEFT, padx=5)
+
+        self.jiugong_buttons_frame.pack()
+
+        self.create_menu()
+        self.create_function_buttons()
+
+        self.draw_all_circles()
+        self.draw_jiugong_grid()
+
+        self.update_current_hour()
+        self.update_time()
+        self.update_jieqi_info()
+
+        # ====================== 启动自动加载 ======================
+        self.autoload_last_pan()
+
+    # ====================== 一键保存（保存到 E 盘） ======================
+    def onekey_save_pan(self):
+        # 保存路径固定为 E 盘
+        save_path = "E:/qimen_last_save.json"
+
+        data = {
+            "circle_angles": self.circle_angles,
+            "current_stars": self.current_stars,
+            "current_doors": self.current_doors,
+            "current_shen": self.current_shen,
+            "star_by_num": self.star_by_num,
+            "current_shen_shun": self.current_shen_shun,
+            "current_shen_ni": self.current_shen_ni,
+            "jiugong_info_text1": self.jiugong_info_input1.get(),
+            "jiugong_info_text2": self.jiugong_info_input2.get(),
+            "tian_gang_selections": {item["num"]: item["combobox"].get() for item in self.tg_comboboxes}
+        }
+        try:
+            with open(save_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=4)
+            messagebox.showinfo("保存成功", "✅ 当前排盘已保存到 E 盘！\n下次打开自动恢复！")
+        except Exception as e:
+            messagebox.showerror("保存失败", str(e))
+
+    # ====================== 自动加载（从 E 盘读取） ======================
+    def autoload_last_pan(self):
+        # 加载路径固定为 E 盘
+        save_path = "E:/qimen_last_save.json"
+
+        if not os.path.exists(save_path):
+            return
+        try:
+            with open(save_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            self.circle_angles = data.get("circle_angles", [0] * 4)
+            self.current_stars = data.get("current_stars", self.current_stars)
+            self.current_doors = data.get("current_doors", self.current_doors)
+            self.current_shen = data.get("current_shen", self.current_shen)
+            self.star_by_num = data.get("star_by_num", self.star_by_num)
+            self.current_shen_shun = data.get("current_shen_shun", self.current_shen_shun)
+            self.current_shen_ni = data.get("current_shen_ni", self.current_shen_ni)
+
+            if "jiugong_info_text1" in data:
+                self.jiugong_info_input1.delete(0, tk.END)
+                self.jiugong_info_input1.insert(0, data["jiugong_info_text1"])
+            if "jiugong_info_text2" in data:
+                self.jiugong_info_input2.delete(0, tk.END)
+                self.jiugong_info_input2.insert(0, data["jiugong_info_text2"])
+
+            tg_data = data.get("tian_gang_selections", {})
+            for item in self.tg_comboboxes:
+                val = tg_data.get(item["num"], self.tian_gang_list[0])
+                if val in self.tian_gang_list:
+                    item["combobox"].current(self.tian_gang_list.index(val))
+
+            self.draw_all_circles()
+            self.draw_jiugong_grid()
+        except:
+            pass
+
+    # ====================== 以下完全不变 ======================
+    def get_current_jieqi(self):
+        now = datetime.now()
+        now_date = now.date()
+        if now < self.jieqi_2026[0][1]:
+            return "冬至", "下元"
+        for jieqi_name, start_time, end_time in self.jieqi_2026:
+            jieqi_day = start_time.date()
+            next_jieqi_day = end_time.date()
+            if jieqi_day <= now_date < next_jieqi_day:
+                day_diff = (now_date - jieqi_day).days
+                if day_diff <= 5:
+                    yuan = "上元"
+                elif day_diff <= 10:
+                    yuan = "中元"
+                else:
+                    yuan = "下元"
+                return jieqi_name, yuan
+        return "小寒", "上元"
+
+    def get_jieqi_dun_num(self, jieqi_name, yuan):
+        yangdun_rules = {
+            "冬至": {"上元": "一", "中元": "七", "下元": "四"},
+            "惊蛰": {"上元": "一", "中元": "七", "下元": "四"},
+            "小寒": {"上元": "二", "中元": "八", "下元": "五"},
+            "大寒": {"上元": "三", "中元": "九", "下元": "六"},
+            "春分": {"上元": "三", "中元": "九", "下元": "六"},
+            "立春": {"上元": "八", "中元": "五", "下元": "二"},
+            "谷雨": {"上元": "五", "中元": "二", "下元": "八"},
+            "小满": {"上元": "五", "中元": "二", "下元": "八"},
+            "雨水": {"上元": "九", "中元": "六", "下元": "三"},
+            "清明": {"上元": "四", "中元": "一", "下元": "七"},
+            "立夏": {"上元": "四", "中元": "一", "下元": "七"},
+            "芒种": {"上元": "六", "中元": "三", "下元": "九"}
+        }
+        yindun_rules = {
+            "夏至": {"上元": "九", "中元": "三", "下元": "六"},
+            "白露": {"上元": "九", "中元": "三", "下元": "六"},
+            "小暑": {"上元": "八", "中元": "二", "下元": "五"},
+            "大暑": {"上元": "七", "中元": "一", "下元": "四"},
+            "秋分": {"上元": "七", "中元": "一", "下元": "四"},
+            "立秋": {"上元": "二", "中元": "五", "下元": "八"},
+            "霜降": {"上元": "五", "中元": "八", "下元": "二"},
+            "小雪": {"上元": "五", "中元": "八", "下元": "二"},
+            "处暑": {"上元": "一", "中元": "四", "下元": "七"},
+            "寒露": {"上元": "九", "中元": "六", "下元": "三"},
+            "立冬": {"上元": "九", "中元": "六", "下元": "三"},
+            "大雪": {"上元": "四", "中元": "七", "下元": "一"}
+        }
+        if jieqi_name in yangdun_rules:
+            dun_type = "阳遁"
+            dun_num = yangdun_rules[jieqi_name].get(yuan, "一")
+        elif jieqi_name in yindun_rules:
+            dun_type = "阴遁"
+            dun_num = yindun_rules[jieqi_name].get(yuan, "九")
+        else:
+            dun_type = "阳遁"
+            dun_num = "一"
+        return dun_type, dun_num
+
+    def update_jieqi_info(self):
+        try:
+            jieqi_name, yuan = self.get_current_jieqi()
+            dun_type, dun_num = self.get_jieqi_dun_num(jieqi_name, yuan)
+            display_text = f"{jieqi_name} {yuan}{dun_num}局（{dun_type}）"
+            current_text = self.jiugong_info_input1.get()
+            if current_text != display_text:
+                self.jiugong_info_input1.delete(0, tk.END)
+                self.jiugong_info_input1.insert(0, display_text)
+        except:
+            self.jiugong_info_input1.delete(0, tk.END)
+            self.jiugong_info_input1.insert(0, "冬至 上元一局（阳遁）")
+        self.root.after(60000, self.update_jieqi_info)
+
+    def update_current_hour(self):
+        now = datetime.now()
+        hour = now.hour
+        minute = now.minute
+        second = now.second
+        if 23 <= hour or hour < 1:
+            current_hour = "子时"
+        elif 1 <= hour < 3:
+            current_hour = "丑时"
+        elif 3 <= hour < 5:
+            current_hour = "寅时"
+        elif 5 <= hour < 7:
+            current_hour = "卯时"
+        elif 7 <= hour < 9:
+            current_hour = "辰时"
+        elif 9 <= hour < 11:
+            current_hour = "巳时"
+        elif 11 <= hour < 13:
+            current_hour = "午时"
+        elif 13 <= hour < 15:
+            current_hour = "未时"
+        elif 15 <= hour < 17:
+            current_hour = "申时"
+        elif 17 <= hour < 19:
+            current_hour = "酉时"
+        elif 19 <= hour < 21:
+            current_hour = "戌时"
+        elif 21 <= hour < 23:
+            current_hour = "亥时"
+        else:
+            current_hour = "未知"
+        self.current_time_label.config(text=f"{current_hour} ({hour:02d}:{minute:02d}:{second:02d})")
+        try:
+            current_input2 = self.jiugong_info_input2.get()
+            if "时辰：" in current_input2:
+                target_palace = self.time_to_palace.get(current_hour, "未知")
+                self.jiugong_info_input2.delete(0, tk.END)
+                self.jiugong_info_input2.insert(0, f"时辰：{current_hour}（{target_palace}宫）")
+        except:
+            pass
+        self.root.after(1000, self.update_current_hour)
+
+    def locate_star_to_palace(self):
+        pass
+
+    def apply_dun_setting(self):
+        pass
+
+    def sync_hour_to_doors(self):
+        pass
+
+    def update_time(self):
+        current_time = time.strftime("%Y年%m月%d日 %H:%M:%S", time.localtime())
+        self.circle_time_label.config(text=f"当前时间：{current_time}")
+        self.jiugong_time_label.config(text=f"当前时间：{current_time}")
+        self.root.after(1000, self.update_time)
+
+    def create_menu(self):
+        menubar = tk.Menu(self.root)
+        self.root.config(menu=menubar)
+        file_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="文件", menu=file_menu)
+        file_menu.add_command(label="打开", command=self.file_open)
+        file_menu.add_command(label="保存", command=self.file_save)
+        file_menu.add_command(label="另存为", command=self.file_save_as)
+        file_menu.add_separator()
+        file_menu.add_command(label="删除当前配置", command=self.file_delete)
+        file_menu.add_separator()
+        file_menu.add_command(label="退出", command=self.root.quit)
+        shibaju_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="遁甲十八局", menu=shibaju_menu)
+        yangdun_menu = tk.Menu(shibaju_menu, tearoff=0)
+        shibaju_menu.add_cascade(label="阳遁九局", menu=yangdun_menu)
+        yangdun_menu.add_command(label="冬至惊蛰一七四", command=lambda: self.show_alert("冬至惊蛰一七四"))
+        yangdun_menu.add_command(label="小寒二八五同推", command=lambda: self.show_alert("小寒二八五同推"))
+        yangdun_menu.add_command(label="春分大寒三九六", command=lambda: self.show_alert("春分大寒三九六"))
+        yangdun_menu.add_command(label="立春八五二相随", command=lambda: self.show_alert("立春八五二相随"))
+        yangdun_menu.add_command(label="谷雨小满五二八", command=lambda: self.show_alert("谷雨小满五二八"))
+        yangdun_menu.add_command(label="雨水九六三为期", command=lambda: self.show_alert("雨水九六三为期"))
+        yangdun_menu.add_command(label="清明立夏四一七", command=lambda: self.show_alert("清明立夏四一七"))
+        yangdun_menu.add_command(label="芒种六三九为宜", command=lambda: self.show_alert("芒种六三九为宜"))
+        yangdun_menu.add_command(label="十二节气四时定，上中下元是根基",
+                                 command=lambda: self.show_alert("十二节气四时定，上中下元是根基"))
+        yindun_menu = tk.Menu(shibaju_menu, tearoff=0)
+        shibaju_menu.add_cascade(label="阴遁九局", menu=yindun_menu)
+        yindun_menu.add_command(label="夏至白露九三六", command=lambda: self.show_alert("夏至白露九三六"))
+        yindun_menu.add_command(label="小暑八二五之间", command=lambda: self.show_alert("小暑八二五之间"))
+        yindun_menu.add_command(label="大暑秋分七一四", command=lambda: self.show_alert("大暑秋分七一四"))
+        yindun_menu.add_command(label="立秋二五八遁还", command=lambda: self.show_alert("立秋二五八遁还"))
+        yindun_menu.add_command(label="霜降小雪五八二", command=lambda: self.show_alert("霜降小雪五八二"))
+        yindun_menu.add_command(label="大雪四七一相关", command=lambda: self.show_alert("大雪四七一相关"))
+        yindun_menu.add_command(label="处暑排来一四七", command=lambda: self.show_alert("处暑排来一四七"))
+        yindun_menu.add_command(label="立冬寒露九六三", command=lambda: self.show_alert("立冬寒露九六三"))
+        yindun_menu.add_command(label="此是阴遁起例法，节气推移细心参",
+                                command=lambda: self.show_alert("此是阴遁起例法，节气推移细心参"))
+
+    def show_alert(self, content):
+        messagebox.showinfo("遁甲十八局", content)
+
+    def create_function_buttons(self):
+        btn_frame = tk.Frame(root)
+        btn_frame.pack(fill=tk.X, padx=10, pady=5)
+        center_frame = tk.Frame(btn_frame)
+        center_frame.pack(anchor=tk.CENTER)
+        self.circle_mode_btn = tk.Button(
+            center_frame,
+            text="显示圆盘及控制按钮",
+            command=self.switch_to_circle_mode,
+            font=("SimHei", 12, "bold"),
+            width=20,
+            height=2,
+            bg="#d1e7dd"
+        )
+        self.circle_mode_btn.pack(side=tk.LEFT, padx=10)
+        self.jiugong_mode_btn = tk.Button(
+            center_frame,
+            text="显示九宫格及功能按钮",
+            command=lambda: self.switch_to_jiugong_mode(),
+            font=("SimHei", 12, "bold"),
+            width=20,
+            height=2,
+            bg="#fff3cd"
+        )
+        self.jiugong_mode_btn.pack(side=tk.LEFT, padx=10)
+
+    def switch_to_circle_mode(self):
+        if not self.show_circle_mode:
+            self.jiugong_main_container.pack_forget()
+            self.jiugong_buttons_frame.pack_forget()
+            self.circle_time_frame.pack(side=tk.TOP, fill=tk.X, pady=5)
+            self.circle_canvas.pack(side=tk.TOP, pady=20)
+            self.circle_buttons_frame.pack()
+            self.show_circle_mode = True
+            self.show_jiugong_mode = False
+
+    def switch_to_jiugong_mode(self):
+        if not self.show_jiugong_mode:
+            self.circle_canvas.pack_forget()
+            self.circle_buttons_frame.pack_forget()
+            self.circle_time_frame.pack_forget()
+            self.jiugong_main_container.pack(side=tk.TOP, pady=20)
+            self.jiugong_buttons_frame.pack()
+            self.show_circle_mode = False
+            self.show_jiugong_mode = True
+
+    def file_open(self):
+        file_path = filedialog.askopenfilename(
+            title="打开配置文件",
+            filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")]
+        )
+        if file_path:
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                self.circle_angles = data.get("circle_angles", [0, 0, 0, 0])
+                self.current_stars = data.get("current_stars", self.get_star_list())
+                self.current_doors = data.get("current_doors", self.current_doors)
+                self.current_shen = data.get("current_shen", self.current_shen_shun.copy())
+                if "jiugong_info_text1" in data:
+                    self.jiugong_info_input1.delete(0, tk.END)
+                    self.jiugong_info_input1.insert(0, data["jiugong_info_text1"])
+                if "jiugong_info_text2" in data:
+                    self.jiugong_info_input2.delete(0, tk.END)
+                    self.jiugong_info_input2.insert(0, data["jiugong_info_text2"])
+                tg_selections = data.get("tian_gang_selections", {})
+                for item in self.tg_comboboxes:
+                    num = item["num"]
+                    if num in tg_selections:
+                        if tg_selections[num] in self.tian_gang_list:
+                            idx = self.tian_gang_list.index(tg_selections[num])
+                        else:
+                            idx = 0
+                        item["combobox"].current(idx)
+                self.draw_all_circles()
+                self.draw_jiugong_grid()
+                self.file_path = file_path
+                messagebox.showinfo("成功", "配置文件加载成功！")
+            except Exception as e:
+                messagebox.showerror("错误", f"打开文件失败：{str(e)}")
+
+    def file_save(self):
+        if not self.file_path:
+            self.file_save_as()
+            return
+        try:
+            jiugong_info_text1 = self.jiugong_info_input1.get()
+            jiugong_info_text2 = self.jiugong_info_input2.get()
+            tg_selections = {}
+            for item in self.tg_comboboxes:
+                tg_selections[item["num"]] = item["combobox"].get()
+            data = {
+                "circle_angles": self.circle_angles,
+                "current_stars": self.current_stars,
+                "current_doors": self.current_doors,
+                "current_shen": self.current_shen,
+                "tian_gang_selections": tg_selections,
+                "jiugong_info_text1": jiugong_info_text1,
+                "jiugong_info_text2": jiugong_info_text2
+            }
+            with open(self.file_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=4)
+            messagebox.showinfo("成功", "配置已保存！")
+        except Exception as e:
+            messagebox.showerror("错误", f"保存失败：{str(e)}")
+
+    def file_save_as(self):
+        file_path = filedialog.asksaveasfilename(
+            title="另存为",
+            defaultextension=".json",
+            filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")]
+        )
+        if file_path:
+            self.file_path = file_path
+            self.file_save()
+
+    def file_delete(self):
+        if messagebox.askyesno("确认", "确定要恢复默认配置吗？此操作不可撤销！"):
+            self.circle_angles = [0, 0, 0, 0]
+            self.current_stars = self.get_star_list()
+            self.current_doors = ["杜门巽位", "景门离位", "死门坤位", "伤门震位", "困位", "惊门兑位", "生门艮位",
+                                  "休门坎位", "开门乾位"]
+            shen_shun_num = {
+                "一": "直符", "八": "螣蛇", "三": "太阴", "四": "六合",
+                "九": "勾陈", "二": "朱雀", "七": "九地", "六": "九天", "五": "中宫"
+            }
+            self.current_shen_shun = [shen_shun_num[self.idx_to_num[idx]] for idx in range(9)]
+            self.current_shen = self.current_shen_shun.copy()
+            self.jiugong_info_input1.delete(0, tk.END)
+            self.jiugong_info_input1.insert(0, "冬至 上元一局")
+            self.jiugong_info_input2.delete(0, tk.END)
+            self.jiugong_info_input2.insert(0, "时辰：甲子时")
+            for item in self.tg_comboboxes:
+                item["combobox"].current(0)
+            self.draw_all_circles()
+            self.draw_jiugong_grid()
+            messagebox.showinfo("成功", "已恢复默认配置！")
+
+    def create_tg_comboboxes_in_jiugong(self):
+        cell_size = self.max_diameter / 3
+        idx_pos = [
+            (0, 0), (0, 1), (0, 2),
+            (1, 0), (1, 1), (1, 2),
+            (2, 0), (2, 1), (2, 2)
+        ]
+        for idx in range(9):
+            row, col = idx_pos[idx]
+            x = col * cell_size + cell_size - 80
+            y = row * cell_size + 10
+            num = self.idx_to_num[idx]
+            cbx = ttk.Combobox(
+                self.jiugong_container,
+                values=self.tian_gang_list,
+                font=("SimHei", 10),
+                width=8,
+                state="readonly"
+            )
+            cbx.place(x=x, y=y)
+            cbx.current(0)
+            self.tg_comboboxes.append({
+                "num": num,
+                "idx": idx,
+                "combobox": cbx
+            })
+
+    def get_star_list(self):
+        star_list = []
+        for idx in range(9):
+            num = self.idx_to_num[idx]
+            star_list.append(self.star_by_num[num])
+        return star_list
+
+    def draw_all_circles(self):
+        self.circle_canvas.delete("all")
+        for circle_idx in range(4):
+            radius = self.base_radius + (3 - circle_idx) * self.radius_gap
+            self.circle_canvas.create_oval(
+                self.center_x - radius, self.center_y - radius,
+                self.center_x + radius, self.center_y + radius,
+                outline="black", width=2
+            )
+            rotate_angle = self.circle_angles[circle_idx]
+            for line_angle in self.line_mid_angles:
+                total_angle = line_angle + rotate_angle
+                angle_rad = math.radians(total_angle)
+                line_x = self.center_x + self.max_radius * math.cos(angle_rad)
+                line_y = self.center_y - self.max_radius * math.sin(angle_rad)
+                self.circle_canvas.create_line(
+                    self.center_x, self.center_y,
+                    line_x, line_y,
+                    fill="gray", width=1
+                )
+            font_size = int(12 + (radius - self.base_radius) * 0.08)
+            font_size = max(12, min(20, font_size))
+            for idx, bagua_name in enumerate(self.bagua_names):
+                text_angle = self.bagua_angles[idx] + rotate_angle
+                angle_rad = math.radians(text_angle)
+                text_radius = radius - (18 if circle_idx == 3 else 28)
+                text_x = self.center_x + text_radius * math.cos(angle_rad)
+                text_y = self.center_y - text_radius * math.sin(angle_rad)
+                self.circle_canvas.create_text(
+                    text_x, text_y,
+                    text=bagua_name,
+                    font=("SimHei", font_size, "bold"),
+                    fill="black",
+                    anchor="center"
+                )
+
+    def draw_jiugong_grid(self):
+        self.jiugong_canvas.delete("all")
+        side_length = self.max_diameter
+        cell_size = side_length / 3
+        label_offset = 15
+        shen_offset = 30
+        self.jiugong_canvas.create_rectangle(0, 0, side_length, side_length, outline="black", width=2)
+        self.jiugong_canvas.create_line(cell_size, 0, cell_size, side_length, fill="black", width=1)
+        self.jiugong_canvas.create_line(2 * cell_size, 0, 2 * cell_size, side_length, fill="black", width=1)
+        self.jiugong_canvas.create_line(0, cell_size, side_length, cell_size, fill="black", width=1)
+        self.jiugong_canvas.create_line(0, 2 * cell_size, side_length, 2 * cell_size, fill="black", width=1)
+        idx = 0
+        for row in range(3):
+            for col in range(3):
+                x1 = col * cell_size
+                y1 = row * cell_size
+                mid_x = (x1 + (col + 1) * cell_size) / 2
+                mid_y = (y1 + (row + 1) * cell_size) / 2
+                shen_text = self.current_shen[idx]
+                if idx == 4 and (shen_text == "直符" or self.current_stars[idx] == "天禽星"):
+                    shen_display_text = "直符"
+                else:
+                    shen_display_text = shen_text
+                self.jiugong_canvas.create_text(
+                    mid_x, mid_y - shen_offset - 5,
+                    text=shen_display_text,
+                    font=("SimHei", 9, "bold"),
+                    fill="darkgreen",
+                    anchor="center"
+                )
+                self.jiugong_canvas.create_text(
+                    mid_x, mid_y - label_offset - 5,
+                    text=self.current_stars[idx],
+                    font=("SimHei", 10, "bold"),
+                    fill="darkblue",
+                    anchor="center"
+                )
+                self.jiugong_canvas.create_text(
+                    mid_x, mid_y,
+                    text=self.base_nums[idx],
+                    font=("SimHei", 14, "bold"),
+                    fill="black",
+                    anchor="center"
+                )
+                self.jiugong_canvas.create_text(
+                    mid_x, mid_y + label_offset + 5,
+                    text=self.current_doors[idx],
+                    font=("SimHei", 10, "bold"),
+                    fill="darkred",
+                    anchor="center"
+                )
+                idx += 1
+
+    def move_stars(self, direction="forward"):
+        current_star_num = {num: self.star_by_num[num] for num in self.star_by_num.keys()}
+        if direction == "forward":
+            num_order = ["一", "二", "三", "四", "五", "六", "七", "八", "九"]
+        else:
+            num_order = ["九", "八", "七", "六", "五", "四", "三", "二", "一"]
+        new_star_num = {}
+        for i in range(len(num_order)):
+            current_num = num_order[i]
+            prev_num = num_order[i - 1]
+            new_star_num[current_num] = current_star_num[prev_num]
+        self.star_by_num = new_star_num
+        self.current_stars = self.get_star_list()
+        self.draw_jiugong_grid()
+
+    def change_doors(self, direction="forward"):
+        map_key = "顺时针" if direction == "forward" else "逆时针"
+        new_doors = [self.current_doors[i] for i in self.door_rotate_map[map_key]]
+        new_doors[4] = "困位"
+        self.current_doors = new_doors
+        self.draw_jiugong_grid()
+
+    def change_shen(self, direction="forward"):
+        map_key = "顺时针" if direction == "forward" else "逆时针"
+        if direction == "forward":
+            self.current_shen = self.current_shen_shun.copy()
+        else:
+            self.current_shen = self.current_shen_ni.copy()
+        new_shen = [self.current_shen[i] for i in self.shen_rotate_map[map_key]]
+        new_shen[4] = self.current_shen[4]
+        if direction == "forward":
+            self.current_shen_shun = new_shen
+        else:
+            self.current_shen_ni = new_shen
+        self.current_shen = new_shen
+        self.draw_jiugong_grid()
+
+    def rotate_circle(self, circle_idx):
+        self.circle_angles[circle_idx] = (self.circle_angles[circle_idx] + self.rotate_step) % 360
+        self.draw_all_circles()
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    style = ttk.Style(root)
+    style.theme_use("default")
+    app = RotatingBaguaCirclesApp(root)
+    root.mainloop()
